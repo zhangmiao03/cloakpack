@@ -1,0 +1,33 @@
+{
+  "name": "@cloakpack/core",
+  "version": "0.1.0",
+  "description": "Secret-detection engine shared by cloakpack CLI and the dsh-cloak plugin: signatures, structural rules, allowlists, baselines, git integration, encrypted vault.",
+  "type": "module",
+  "main": "./lib/index.js",
+  "types": "./lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": ["lib", "README.md"],
+  "keywords": ["secrets", "detection", "security", "engine"],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zhangmiao03/cloakpack.git",
+    "directory": "packages/core"
+  },
+  "engines": { "node": ">=22" },
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^24.13.3",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.7"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  }
+}

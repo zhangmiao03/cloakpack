@@ -1,0 +1,6 @@
+# dsh-cloak bundle patch: inserts the cloak plugin row over the profile root.
+# Per-row config (enabled/dryRun/builtins/rulesFile/audit) lands in the user's
+# profile cordis.patch.yml under id: cloak.
+- insert:
+    - id: cloak
+      name: dsh-cloak

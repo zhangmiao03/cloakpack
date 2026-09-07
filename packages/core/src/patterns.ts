@@ -14,6 +14,21 @@ export interface Signature {
   regex: RegExp
   /** 可选：对候选 span 做进一步校验（如长度、字符集），返回 false 则放弃。 */
   validate?: (match: string) => boolean
+  /** 可选：候选 span 的最小香农熵（gitleaks 同型反误报闸，作用于字母数字部分）。 */
+  entropyMin?: number
+}
+
+/** 香农熵（按字符计，gitleaks entropy 同思路）。 */
+export function shannonEntropy(s: string): number {
+  if (s.length === 0) return 0
+  const freq = new Map<string, number>()
+  for (const ch of s) freq.set(ch, (freq.get(ch) ?? 0) + 1)
+  let h = 0
+  for (const n of freq.values()) {
+    const p = n / s.length
+    h -= p * Math.log2(p)
+  }
+  return h
 }
 
 /** 通用 token 校验：至少 8 个字符且同时含字母与数字类字符，排除占位符样子。 */
@@ -63,6 +78,7 @@ export const SIGNATURES: Signature[] = [
     // 放在 deepseek/anthropic 之后靠最长匹配去重兜底
     regex: /\bsk-(?:proj-)?[A-Za-z0-9_\-]{32,}\b/g,
     validate: looksLikeCredential,
+    entropyMin: 3.2,
   },
   {
     id: 'openrouter-api-key',
@@ -156,6 +172,73 @@ export const SIGNATURES: Signature[] = [
     id: 'bearer-header',
     description: 'Authorization: Bearer … 凭证',
     regex: /\bauthorization["']?\s*[:=]\s*["']?bearer\s+[A-Za-z0-9._\-+/=]{20,}/gi,
+  },
+
+  // ── 第二批（取自 gitleaks 规则库的高精度前缀格式，2026-09 增补）──
+  {
+    id: 'anthropic-admin-api-key',
+    description: 'Anthropic admin API key (sk-ant-admin01-…)',
+    regex: /\bsk-ant-admin01-[A-Za-z0-9_\-]{16,}/g,
+  },
+  {
+    id: 'twilio-api-key',
+    description: 'Twilio API key (SK + 32 hex)',
+    regex: /\bSK[0-9a-f]{32}\b/g,
+  },
+  {
+    id: 'sendgrid-api-key',
+    description: 'SendGrid API key (SG.x.y)',
+    regex: /\bSG\.[A-Za-z0-9_\-]{16,32}\.[A-Za-z0-9_\-]{16,64}\b/g,
+  },
+  {
+    id: 'mailgun-api-key',
+    description: 'Mailgun API key (key- + 32 hex)',
+    regex: /\bkey-[0-9a-z]{32}\b/g,
+  },
+  {
+    id: 'telegram-bot-token',
+    description: 'Telegram bot token (123456789:AA…)',
+    regex: /\b[0-9]{8,10}:AA[A-Za-z0-9_\-]{30,40}\b/g,
+  },
+  {
+    id: 'airtable-pat',
+    description: 'Airtable personal access token (patXX.YY)',
+    regex: /\bpat[A-Za-z0-9]{14,24}\.[a-z0-9]{24,40}\b/g,
+  },
+  {
+    id: 'atlassian-api-token',
+    description: 'Atlassian API token (ATATT3…)',
+    regex: /\bATATT3[A-Za-z0-9_\-=]{60,}/g,
+  },
+  {
+    id: 'digitalocean-token',
+    description: 'DigitalOcean token (dop_/dor_/doc_ v1 + 64 hex)',
+    regex: /\bdo[prc]_v1_[a-f0-9]{64}\b/g,
+  },
+  {
+    id: 'gitlab-scoped-token',
+    description: 'GitLab deploy/routable/CI token (gldt-/glrt-/glcbt-/glptt-…)',
+    regex: /\bgl(?:dt|rt|cbt|ptt)-[A-Za-z0-9_\-]{20,}/g,
+  },
+  {
+    id: 'notion-token',
+    description: 'Notion integration token (secret_ + 43)',
+    regex: /\bsecret_[A-Za-z0-9]{40,48}\b/g,
+  },
+  {
+    id: 'figma-token',
+    description: 'Figma token (figd_/figu_…)',
+    regex: /\bfig[du]_[A-Za-z0-9_\-]{25,}/g,
+  },
+  {
+    id: 'google-oauth-refresh',
+    description: 'Google OAuth refresh token (1//…)',
+    regex: /\b1\/\/[0-9A-Za-z_\-]{40,}/g,
+  },
+  {
+    id: 'tencent-cloud-secretid',
+    description: '腾讯云 SecretId (AKID…)',
+    regex: /\bAKID[A-Za-z0-9]{32,48}\b/g,
   },
 ]
 

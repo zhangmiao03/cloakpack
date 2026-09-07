@@ -3,6 +3,7 @@
  * 文件:行号，以及在文件内容上执行「原值 → 占位符」/ 反向替换。
  */
 import { readFileSync, writeFileSync } from 'node:fs'
+import { INLINE_MARKER } from './allowlist.js'
 import { scan, type Finding, type ScanOptions } from './scan.js'
 
 /** 单文件内的一条命中（带 1-based 行号）。 */
@@ -19,11 +20,22 @@ export function scanText(text: string, options?: ScanOptions): Array<Finding & {
   const out: Array<Finding & { line: number }> = []
   let idx = 0
   let line = 1
+  let lineStart = 0
+  let lineText = ''
   for (const f of findings) {
     while (idx < f.start) {
-      if (text.charCodeAt(idx) === 10 /* \n */) line += 1
-      idx += 1
+      if (text.charCodeAt(idx) === 10 /* \n */) {
+        line += 1
+        idx += 1
+        lineStart = idx
+        lineText = ''
+      } else {
+        idx += 1
+      }
     }
+    // 行内豁免：该行包含 cloakpack:allow 标记（gitleaks:allow 同型）
+    if (lineText === '') lineText = text.slice(lineStart, text.indexOf('\n', lineStart) === -1 ? undefined : text.indexOf('\n', lineStart))
+    if (lineText.includes(INLINE_MARKER)) continue
     out.push({ ...f, line })
   }
   return out

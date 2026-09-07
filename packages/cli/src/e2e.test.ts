@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const cliJs = join(dirname(fileURLToPath(import.meta.url)), '..', 'lib', 'cli.js')
+const cliJs = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'packages', 'cli', 'lib', 'cli.js')
 
 let home = ''
 let binDir = ''

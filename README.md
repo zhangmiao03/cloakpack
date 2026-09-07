@@ -1,77 +1,38 @@
 # cloakpack
 
-**Safety-pack your secrets before they leave the machine.** A git pre-push guard that blocks credential leaks, plus one-command `pack` (vault + placeholders) / `unpack` — built for hackathon deadlines, when the secrets are already in the project and the demo is tomorrow.
+**One product, one vault, two gates.** 密钥安全包：一个本地加密保险库，守两道门——出机门（git push 阻断）与入模门（DeepSeek Harness 上下文防火墙）。共享同一套检测引擎。
 
-[中文文档](README.zh.md)
+[中文说明](#中文) · Monorepo: `packages/core`(引擎) · `packages/cli`(cloakpack CLI) · `packages/dsh-cloak`(DSH 插件)
 
-```
-$ git push
-[cloakpack] ✋ Push blocked: credentials found in the tree that is about to leave this machine.
-  .env:2  deepseek-api-key（signature）
-  config/app.yaml:2  sensitive-value（key-assignment）
+## Gates
 
-$ cloakpack pack          # secrets → local encrypted vault, files → placeholders
-$ git commit -m "cloak: pack secrets" && git push   # ✅ passes, remote stays clean
+| Gate | Package | Install | What it blocks |
+|---|---|---|---|
+| 出机门 | `cloakpack` (CLI) | `npm i -g cloakpack` → `cloakpack init` | `git push` with credentials in the pushed tree — **blocks, then one-command `pack`** (vault + placeholders) fixes it; `unpack` restores locally |
+| 入模门 | `dsh-cloak` (DSH plugin) | `dsh plugin --profile web add dsh-cloak` | credentials in tool results **before they enter model context** (placeholders + system-prompt guidance) |
 
-$ cloakpack unpack        # restore on your own machine anytime
-```
+Both share: 36 high-precision signature families (incl. 飞书/企微/腾讯云 for the CN ecosystem), sensitive-key-name rules, custom regex, `⟦cloak:category:n⟧` stable placeholders, AES-256-GCM local vault (`~/.cloakpack/keys/`, 0600).
 
-## Why
+## Engine (best practices from the field)
 
-gitleaks and friends **warn** — and at 3 a.m. before the deadline, people `--no-verify` past the warning. sops and git-crypt assume you adopted them on day one; hackathon reality is a messy repo full of secrets **today**. cloakpack closes that gap: when a leak is about to happen, the fix is one command, and the fix is **easier than the bypass**.
+- **Inline allowlist** — a `cloakpack:allow` comment suppresses that line (gitleaks parity)
+- **Config allowlist** — `.cloakpack/rules.json` → `allow.paths` (globs) / `allow.values`
+- **Baseline** — `cloakpack scan --update-baseline`: 存量入册不拦、新密钥必拦 (detect-secrets parity); fingerprints only, no plaintext
+- **Entropy gate** — Shannon-entropy secondary filter on generic formats (gitleaks parity)
+- Honest limits: secrets already pushed must be **rotated**; packing can't save history
 
-- **Block, don't warn** — the pre-push hook scans the exact tree that is about to be pushed and refuses to let credentials out (the explicit escape hatch is `git push --no-verify`, by design).
-- **Pack, don't panic** — `cloakpack pack` moves every detected secret into a local AES-256-GCM encrypted vault (`.cloakpack/vault.bin`, key never leaves `~/.cloakpack/keys/`), replaces the in-file values with stable placeholders like `⟦cloak:deepseek-api-key:1⟧`, and stages the result. Push again and the remote is clean.
-- **Reversible on your machine** — `cloakpack unpack` restores the originals, so your demo keeps running locally.
-- **Honest about history** — if a secret already exists in past commits, cloakpack tells you the truth: *packing cannot save it; rotate the key.*
+## Threat model
 
-## Detection
-
-Same engine as [dsh-cloak](https://github.com/zhangmiao03/dsh-cloak): 24 high-precision signature families (AWS / Aliyun / GCP, DeepSeek / OpenAI / Anthropic / OpenRouter, GitHub / GitLab / npm, Slack / Discord / Feishu / WeCom webhooks, Stripe / Shopify / Linear, JWT, PEM private keys, credentialed DB URLs, `Authorization: Bearer`), sensitive-key-name rules for `.env` / JSON / YAML shapes, and your own regex rules in `.cloakpack/rules.json`. Pagination cursors (`next_token`…) and placeholder values (`${VAR}`, `changeme`…) are deliberately excluded.
-
-## Install
-
-```sh
-npm i -g cloakpack
-cd your-project
-cloakpack init      # installs the pre-push guard, gitignores the vault
-```
-
-Zero runtime dependencies. Node ≥ 22. macOS / Linux / Windows(git-bash).
-
-## Commands
-
-| Command | What it does |
-|---|---|
-| `cloakpack init` | Install the pre-push guard (refuses to overwrite a foreign hook), gitignore `.cloakpack/`, initialize the key |
-| `cloakpack scan` | Scan tracked files; exit code 1 on hits |
-| `cloakpack pack [--dry-run]` | Vault + placeholders + `git add`; warns (does not fail) if secrets also live in history |
-| `cloakpack unpack` | Restore originals from the vault |
-| `cloakpack unhook` | Remove the guard |
-
-Custom rules (`.cloakpack/rules.json`):
-
-```json
-[
-  { "id": "internal-prefix", "pattern": "mycorp-[a-z0-9]{32}", "flags": "g" }
-]
-```
-
-## Threat model — read this
-
-- Protects against: the project directory leaving your machine (sharing, zip-and-send, USB loss, judges cloning your repo, public demos).
-- Does **not** protect against: malware running as the same user on the same machine (it can read the keyfile, same class as password managers' local mode).
-- The vault and key are **never committed**: `.cloakpack/` is gitignored by `init`; losing `~/.cloakpack/keys/` means the pack is unrecoverable by design.
-- A secret that has already reached a remote must be **rotated** — packing only cleans the current tree.
+Protects the project directory leaving your machine (sharing, judges, USB, demos). Does not protect against same-user malware on the same machine. Vault + key never committed.
 
 ## Development
 
 ```sh
-npm install
-npm test          # 38 tests incl. a real-git E2E: blocked push → pack → clean push → unpack
-npm run build
+npm install --legacy-peer-deps && npm run build && npm test   # 71 tests incl. real-git E2E
 ```
 
-## License
+License: MIT. Roadmap: opt-in live verification (truffleHog-style), base64/URL decoders, `scan --history` full-blob sweep, DSH approval-gated reveal sharing this vault.
 
-[MIT](LICENSE)
+## 中文
+
+一个产品、一个保险库、两道门：`cloakpack`（CLI，npm 包）在 `git push` 时阻断密钥出机，`dsh-cloak`（DSH 插件）在密钥进入模型上下文前打码；引擎同源（36 签名族+键名规则+自定义正则），占位符与保险库格式互通。行内 `cloakpack:allow` 豁免、配置豁免、基线（存量不拦新增拦）、熵过滤均已内置；已出过门的密钥必须轮换——工具会直说。

@@ -34,6 +34,21 @@ const POSITIVE_SAMPLES: Record<string, string[]> = {
     'mongodb+srv://user:p@ssw0rdX@cluster0.example.net/db',
   ],
   'bearer-header': ['Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.fakefakefake'],
+
+  // 第二批（扫描器形态的运行时拼接，源码不出现完整字面量）
+  'anthropic-admin-api-key': [['sk-ant-admin01-', 'fakeExampleToken123456'].join('')],
+  'twilio-api-key': [['SK', '0123456789abcdef0123456789abcdef'].join('')],
+  'sendgrid-api-key': [['SG.', 'FakeExampleToken12345678', '.', 'FakeExampleToken1234567890abcdefXYZ'].join('')],
+  'mailgun-api-key': [['key-', '0123456789abcdef0123456789abcdef'].join('')],
+  'telegram-bot-token': [['123456789', ':AA', 'FakeExampleTelegramBotToken1234567890x'].join('')],
+  'airtable-pat': [['patFakeExample1234', '.0123456789abcdef0123456789abcdef'].join('')],
+  'atlassian-api-token': [['ATATT3', 'x' + 'FakeExampleToken'.repeat(6)].join('')],
+  'digitalocean-token': [['dop_v1_', 'a1b2c3d4'.repeat(8)].join('')],
+  'gitlab-scoped-token': [['gldt-', 'FakeExampleDeployToken1234567890'].join('')],
+  'notion-token': [['secret_', 'FakeExampleNotionIntegrationToken1234567890123'].join('')],
+  'figma-token': [['figd_', 'FakeExampleFigmaPersonalToken1234567890'].join('')],
+  'google-oauth-refresh': [['1//', '0gFakeExampleGoogleOAuthRefreshToken1234567890abcdefXY'].join('')],
+  'tencent-cloud-secretid': [['AKID', 'FakeExampleTencentSecretId1234567890abcdefXYZ1'].join('')],
 }
 
 describe('内置签名', () => {

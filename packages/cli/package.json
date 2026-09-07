@@ -1,0 +1,23 @@
+{
+  "name": "cloakpack",
+  "version": "0.2.0",
+  "description": "Safety-pack your secrets before they leave the machine: a git pre-push guard that blocks credential leaks, plus one-command pack (vault + placeholders) / unpack — built for hackathon deadlines. Engine shared with the dsh-cloak DeepSeek Harness plugin.",
+  "type": "module",
+  "bin": { "cloakpack": "lib/cli.js" },
+  "main": "./lib/cli.js",
+  "files": ["lib", "README.md", "LICENSE"],
+  "keywords": ["secrets", "security", "git", "pre-push", "redaction", "hackathon", "gitleaks-alternative"],
+  "repository": { "type": "git", "url": "git+https://github.com/zhangmiao03/cloakpack.git", "directory": "packages/cli" },
+  "engines": { "node": ">=22" },
+  "license": "MIT",
+  "dependencies": { "@cloakpack/core": "*" },
+  "devDependencies": {
+    "@types/node": "^24.13.3",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.7"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  }
+}

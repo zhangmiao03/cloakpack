@@ -12,10 +12,12 @@
  */
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { packText, scanFile, scanText, unpackText, type FileFinding } from './fs-scan.js'
-import { Vault } from './vault-file.js'
-import { git, repoRoot, trackedFiles, treeFiles, blobAt, parsePushStdin, installHook, removeHook, secretInHistory } from './git.js'
-import type { ScanOptions } from './scan.js'
+import {
+  packText, scanFile, scanText, unpackText, type FileFinding, type ScanOptions,
+  Vault, git, repoRoot, trackedFiles, treeFiles, blobAt, parsePushStdin, installHook, removeHook, secretInHistory,
+  makePathAllower, makeValueAllower, type AllowConfig,
+  baselineKey, loadBaseline, saveBaseline,
+} from '@cloakpack/core'
 
 function die(msg: string, code = 1): never {
   console.error(`[cloakpack] ${msg}`)
@@ -28,20 +30,39 @@ function info(msg: string): void {
 
 const RULES_FILE = '.cloakpack/rules.json'
 
-function loadScanOptions(root: string): ScanOptions {
+interface EffectiveOptions {
+  scan: ScanOptions
+  pathAllowed: (rel: string) => boolean
+}
+
+function loadScanOptions(root: string): EffectiveOptions {
   const file = join(root, RULES_FILE)
   const customRules: Array<{ id: string; regex: RegExp }> = []
+  let allow: AllowConfig = {}
   if (existsSync(file)) {
     try {
-      const parsed = JSON.parse(readFileSync(file, 'utf8')) as Array<{ id: string; pattern: string; flags?: string }>
-      for (const r of Array.isArray(parsed) ? parsed : []) {
+      const raw = JSON.parse(readFileSync(file, 'utf8')) as unknown
+      const parsed = (Array.isArray(raw) ? { rules: raw } : raw) as {
+        rules?: Array<{ id: string; pattern: string; flags?: string }>
+        allow?: AllowConfig
+      }
+      for (const r of parsed.rules ?? []) {
         if (r?.id && r?.pattern) customRules.push({ id: r.id, regex: new RegExp(r.pattern, r.flags ?? 'g') })
       }
+      allow = parsed.allow ?? {}
     } catch (e) {
-      die(`自定义规则文件 ${RULES_FILE} 解析失败: ${e instanceof Error ? e.message : String(e)}`)
+      die(`配置文件 ${RULES_FILE} 解析失败: ${e instanceof Error ? e.message : String(e)}`)
     }
   }
-  return { builtinsEnabled: true, customRules }
+  return {
+    scan: { builtinsEnabled: true, customRules, isAllowed: makeValueAllower(allow.values) },
+    pathAllowed: makePathAllower(allow.paths),
+  }
+}
+
+/** 基线过滤：命中指纹已入册的（文件,类别,原值）不拦。 */
+function notInBaseline(baseline: Set<string>): (file: string, category: string, secret: string) => boolean {
+  return (file, category, secret) => !baseline.has(baselineKey(file, category, secret))
 }
 
 function ensureGitignore(root: string): void {
@@ -75,25 +96,40 @@ function cmdInit(cwd: string): void {
 }
 
 // ── scan ──
-function cmdScan(cwd: string): void {
+function cmdScan(cwd: string, updateBaseline: boolean): void {
   const root = repoRoot(cwd)
   if (!root) die('当前目录不在 git 仓库内')
-  const options = loadScanOptions(root)
+  const { scan: options, pathAllowed } = loadScanOptions(root)
+  const baseline = loadBaseline(root)
   let total = 0
+  const newKeys: string[] = []
   for (const rel of trackedFiles(root)) {
-    if (rel.startsWith('.cloakpack/')) continue
-    const findings = scanFile(join(root, rel), options)
+    if (rel.startsWith('.cloakpack/') || pathAllowed(rel)) continue
+    const abs = join(root, rel)
+    const findings = scanFile(abs, options)
     if (!findings) continue
     for (const f of findings) {
+      const secret = readFileSync(abs, 'utf8').slice(f.start, f.start + f.length)
+      const key = baselineKey(rel, f.category, secret)
+      newKeys.push(key)
+      if (baseline.has(key)) {
+        console.log(`${fmtFinding(f, root)}  [baseline 已入册]`)
+        continue
+      }
       console.log(fmtFinding(f, root))
       total += 1
     }
   }
-  if (total === 0) {
-    info('未发现密钥。')
+  if (updateBaseline) {
+    const n = saveBaseline(root, newKeys)
+    info(`基线已更新：${n} 条指纹入册（.cloakpack/baseline.json，不存明文）。入册项不再拦截，新密钥照拦。`)
     return
   }
-  console.error(`[cloakpack] 共 ${total} 处命中。运行 cloakpack pack 一键收纳。`)
+  if (total === 0) {
+    info(baseline.size > 0 ? '未发现新密钥（基线内命中不拦）。' : '未发现密钥。')
+    return
+  }
+  console.error(`[cloakpack] 共 ${total} 处新命中。运行 cloakpack pack 一键收纳。`)
   process.exit(1)
 }
 
@@ -101,16 +137,20 @@ function cmdScan(cwd: string): void {
 function cmdPack(cwd: string, dryRun: boolean): void {
   const root = repoRoot(cwd)
   if (!root) die('当前目录不在 git 仓库内')
-  const options = loadScanOptions(root)
+  const { scan: options, pathAllowed } = loadScanOptions(root)
+  const baseline = loadBaseline(root)
   const vault = Vault.open(root)
   const changedFiles: string[] = []
   let total = 0
   for (const rel of trackedFiles(root)) {
-    if (rel.startsWith('.cloakpack/')) continue
+    if (rel.startsWith('.cloakpack/') || pathAllowed(rel)) continue
     const abs = join(root, rel)
     const findings = scanFile(abs, options)
     if (!findings || findings.length === 0) continue
     const original = readFileSync(abs, 'utf8')
+    const fresh = findings.filter((f) => !baseline.has(baselineKey(rel, f.category, original.slice(f.start, f.start + f.length))))
+    if (fresh.length !== findings.length) info(`  ${rel}: ${findings.length - fresh.length} 处已入基线，跳过`)
+    if (fresh.length === 0) continue
     const { text, changes } = packText(original, rel, (secret, category, file) => vault.placeholderFor(secret, category, file), options)
     if (changes.length === 0) continue
     total += changes.length
@@ -187,7 +227,8 @@ function cmdGuardPrePush(cwd: string): void {
   const input = readFileSync(0, 'utf8')
   const lines = parsePushStdin(input)
   if (lines.length === 0) process.exit(0)
-  const options = loadScanOptions(root)
+  const { scan: options, pathAllowed } = loadScanOptions(root)
+  const baseline = loadBaseline(root)
   const hits: FileFinding[] = []
   for (const line of lines) {
     if (/^0+$/.test(line.localSha)) continue // 删除远端分支
@@ -201,12 +242,16 @@ function cmdGuardPrePush(cwd: string): void {
     }
     for (const { path, mode } of files) {
       if (mode === '120000' || mode === '160000') continue // symlink / submodule
-      if (path.startsWith('.cloakpack/')) continue
+      if (path.startsWith('.cloakpack/') || pathAllowed(path)) continue
       const blob = blobAt(root, line.localSha, path)
       if (!blob || blob.length === 0 || blob.length > 2 * 1024 * 1024) continue
       if (blob.subarray(0, 8192).includes(0)) continue // 二进制
       const text = blob.toString('utf8')
-      for (const f of scanText(text, options)) hits.push({ ...f, file: path })
+      for (const f of scanText(text, options)) {
+        const secret = text.slice(f.start, f.start + f.length)
+        if (baseline.has(baselineKey(path, f.category, secret))) continue
+        hits.push({ ...f, file: path })
+      }
     }
   }
   if (hits.length === 0) process.exit(0)
@@ -233,7 +278,7 @@ function main(argv: string[]): void {
   const cwd = process.cwd()
   switch (cmd) {
     case 'init': return cmdInit(cwd)
-    case 'scan': return cmdScan(cwd)
+    case 'scan': return cmdScan(cwd, process.argv.includes('--update-baseline'))
     case 'pack': return cmdPack(cwd, rest.includes('--dry-run'))
     case 'unpack': return cmdUnpack(cwd)
     case 'guard':

@@ -8,6 +8,7 @@ import {
   SENSITIVE_KEY_PATTERN,
   SIGNATURES,
   isPlaceholderValue,
+  shannonEntropy,
   type Signature,
 } from './patterns.js'
 
@@ -30,6 +31,8 @@ export interface CompiledCustomRule {
 export interface ScanOptions {
   builtinsEnabled?: boolean
   customRules?: CompiledCustomRule[]
+  /** 值级豁免（来自 rules.json allow.values / 基线外的精确豁免）。返回 true 则丢弃该命中。 */
+  isAllowed?: (secret: string) => boolean
 }
 
 interface RawHit {
@@ -41,25 +44,28 @@ interface RawHit {
   priority: number
 }
 
-function* signatureHits(text: string, sigs: Signature[]): Generator<RawHit> {
+function* signatureHits(text: string, sigs: Signature[], options_: ScanOptions): Generator<RawHit> {
   for (const sig of sigs) {
     sig.regex.lastIndex = 0
     for (const m of text.matchAll(sig.regex)) {
       const span = m[0]
       if (span.length === 0) continue
       if (sig.validate && !sig.validate(span)) continue
+      if (sig.entropyMin !== undefined && shannonEntropy(span) < sig.entropyMin) continue
+      if (options_.isAllowed?.(span)) continue
       yield { start: m.index, end: m.index + span.length, category: sig.id, source: 'signature', priority: 2 }
     }
   }
 }
 
-function* assignmentHits(text: string): Generator<RawHit> {
+function* assignmentHits(text: string, options: ScanOptions): Generator<RawHit> {
   for (const m of text.matchAll(ASSIGNMENT_REGEX)) {
     const key = m[1]
     const value = m[2]
     if (!SENSITIVE_KEY_PATTERN.test(key)) continue
     if (EXCLUDED_KEY_PATTERN.test(key)) continue
     if (isPlaceholderValue(value)) continue
+    if (options.isAllowed?.(value)) continue
     const valueStart = m.index + m[0].length - value.length
     yield {
       start: valueStart,
@@ -102,8 +108,8 @@ export function scan(text: string, options: ScanOptions = {}): Finding[] {
   const hits: RawHit[] = []
   for (const hit of customHits(text, customRules)) hits.push(hit)
   if (builtinsEnabled) {
-    for (const hit of signatureHits(text, SIGNATURES)) hits.push(hit)
-    for (const hit of assignmentHits(text)) hits.push(hit)
+    for (const hit of signatureHits(text, SIGNATURES, options)) hits.push(hit)
+    for (const hit of assignmentHits(text, options)) hits.push(hit)
   }
   return dedupe(hits).map((h) => ({
     start: h.start, length: h.end - h.start, category: h.category, source: h.source,
