@@ -109,7 +109,7 @@ function cmdScan(cwd: string, updateBaseline: boolean): void {
     const findings = scanFile(abs, options)
     if (!findings) continue
     for (const f of findings) {
-      const secret = readFileSync(abs, 'utf8').slice(f.start, f.start + f.length)
+      const secret = readFileSync(abs, 'utf8').slice(f.start, f.start + f.length)  // cloakpack:allow
       const key = baselineKey(rel, f.category, secret)
       newKeys.push(key)
       if (baseline.has(key)) {
@@ -180,7 +180,7 @@ function checkHistoryWarning(root: string, vault: Vault): void {
   // 置非零码会打断 `pack && git commit && git push` 链。
   const seen = new Set<string>()
   for (const entry of vault.list()) {
-    const secret = vault.reveal(entry.placeholder)
+    const secret = vault.reveal(entry.placeholder)  // cloakpack:allow
     if (!secret || seen.has(secret)) continue
     seen.add(secret)
     if (seen.size > 5) break
@@ -248,7 +248,7 @@ function cmdGuardPrePush(cwd: string): void {
       if (blob.subarray(0, 8192).includes(0)) continue // 二进制
       const text = blob.toString('utf8')
       for (const f of scanText(text, options)) {
-        const secret = text.slice(f.start, f.start + f.length)
+        const secret = text.slice(f.start, f.start + f.length)  // cloakpack:allow
         if (baseline.has(baselineKey(path, f.category, secret))) continue
         hits.push({ ...f, file: path })
       }

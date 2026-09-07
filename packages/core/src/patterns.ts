@@ -3,7 +3,7 @@
  *
  * 设计原则：查准优先于查全（false positive 会让用户直接卸载）。
  * 每条签名必须是「几乎不可能在正常文本里出现」的格式。结构化键名
- * 赋值（password=…、api_key: …）由 SENSITIVE_KEY 规则兜底，覆盖未知格式。
+ * 赋值（password=…、api_key: …）由 SENSITIVE_KEY 规则兜底，覆盖未知格式。  // cloakpack:allow
  */
 
 export interface Signature {
@@ -32,7 +32,7 @@ export function shannonEntropy(s: string): number {
 }
 
 /** 通用 token 校验：至少 8 个字符且同时含字母与数字类字符，排除占位符样子。 */
-function looksLikeCredential(token: string): boolean {
+function looksLikeCredential(token: string): boolean {  // cloakpack:allow
   if (token.length < 8) return false
   if (/^\d+$/.test(token)) return false // 纯数字（订单号/时间戳）不打码
   return /[A-Za-z]/.test(token) && /[0-9]/.test(token)
@@ -165,7 +165,7 @@ export const SIGNATURES: Signature[] = [
   },
   {
     id: 'db-connection-url',
-    description: '带密码的数据库/消息队列连接串（postgres://user:pass@… 等）',
+    description: '带密码的数据库/消息队列连接串（postgres://user:pass@… 等）',  // cloakpack:allow
     regex: /\b(?:postgres(?:ql)?|mysql|mariadb|mongodb(?:\+srv)?|redis|rediss|amqps?|ftp):\/\/[^\s:@/"']+:[^\s@/"']+@[^\s"'<>]*/g,
   },
   {

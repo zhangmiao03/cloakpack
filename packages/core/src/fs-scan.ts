@@ -87,7 +87,7 @@ export function unpackText(
 ): { text: string; count: number } {
   let count = 0
   const out = text.replace(/⟦cloak:[^⟧:]+:\d+⟧/g, (ph) => {
-    const secret = reveal(ph)
+    const secret = reveal(ph)  // cloakpack:allow
     if (secret === undefined) return ph
     count += 1
     return secret

@@ -28,7 +28,7 @@ export function createRedactor(vault: SecretVault, options: ScanOptions): Redact
       }
       // 占位符稳定：同一 secret → 同一序号；从后往前替换。
       const enriched: Array<Finding & { placeholder: string }> = findings.map((f) => {
-        const secret = text.slice(f.start, f.start + f.length)
+        const secret = text.slice(f.start, f.start + f.length)  // cloakpack:allow
         return { ...f, placeholder: vault.placeholderFor(agentId, secret, f.category) }
       })
       let out = text

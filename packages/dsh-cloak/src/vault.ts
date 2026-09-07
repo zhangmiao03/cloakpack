@@ -16,7 +16,7 @@ export interface VaultEntry {
   firstSeen: number
 }
 
-function fingerprint(secret: string): string {
+function fingerprint(secret: string): string {  // cloakpack:allow
   return createHash('sha256').update(secret).digest('hex')
 }
 

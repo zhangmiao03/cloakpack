@@ -12,7 +12,7 @@ export const BASELINE_FILE = join('.cloakpack', 'baseline.json')
 const sha = (s: string): string => createHash('sha256').update(s).digest('hex')
 
 /** 一条命中的不可逆指纹（不含明文）。 */
-export function baselineKey(file: string, category: string, secret: string): string {
+export function baselineKey(file: string, category: string, secret: string): string {  // cloakpack:allow
   return sha(`${file}\0${category}\0${sha(secret)}`)
 }
 
