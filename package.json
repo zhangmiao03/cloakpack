@@ -1,0 +1,56 @@
+{
+  "name": "cloakpack",
+  "version": "0.1.0",
+  "description": "Safety-pack your secrets before they leave the machine: a git pre-push guard that blocks credential leaks, and one-command pack (vault + placeholders) / unpack — built for hackathon deadlines.",
+  "type": "module",
+  "bin": {
+    "cloakpack": "lib/cli.js"
+  },
+  "main": "./lib/index.js",
+  "types": "./lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "README.md",
+    "README.zh.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "keywords": [
+    "secrets",
+    "security",
+    "git",
+    "pre-push",
+    "redaction",
+    "hackathon",
+    "gitleaks-alternative"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zhangmiao03/cloakpack.git"
+  },
+  "homepage": "https://github.com/zhangmiao03/cloakpack#readme",
+  "bugs": {
+    "url": "https://github.com/zhangmiao03/cloakpack/issues"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^24.13.3",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.7"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  }
+}
